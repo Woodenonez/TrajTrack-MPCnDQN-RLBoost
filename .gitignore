@@ -1,6 +1,7 @@
 # Dir
 /archive
 /mpc_build
+/mpc_solver
 /data
 .vscode
 
