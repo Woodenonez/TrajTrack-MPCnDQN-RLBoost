@@ -101,7 +101,8 @@ class Animation:
         A dynamic animation as defined by the MPC paper https://doi.org/10.1109/CASE49439.2021.9551644
         """
         interp = lambda x: (1 - cos(x * pi) ) / 2
-        return Animation([0, pi / freq, pi / freq], [KeyFrame(p1, angle), KeyFrame(p2, angle)], interp, offset)
+        time_step = pi/freq if freq != 0 else 1
+        return Animation([0, time_step, time_step], [KeyFrame(p1, angle), KeyFrame(p2, angle)], interp, offset)
     
 
 class Obstacle:
@@ -118,7 +119,8 @@ class Obstacle:
         self,
         nodes: ArrayLike,
         visible_on_reference_path: bool, 
-        animation: Animation
+        animation: Animation,
+        is_static: bool = True
     ):
         """
         :param nodes: Node coordinates of the polygon of this obstacle
@@ -132,6 +134,7 @@ class Obstacle:
         self.animation = animation
         self.time = 0
         self.keyframe = animation.get_keyframe(self.time)
+        self.is_static = is_static
 
     def step(self, time_step: float) -> None:
         self.time += time_step
@@ -200,18 +203,19 @@ class Obstacle:
         return self.padded_polygon.contains(robot.point)
 
     @staticmethod
-    def create_mpc_static(nodes: ArrayLike) -> 'Obstacle':
+    def create_mpc_static(nodes: ArrayLike, is_static=True) -> 'Obstacle':
         """Creates a static obstacle according to the MPC paper https://doi.org/10.1109/CASE49439.2021.9551644"""
-        return Obstacle(nodes, True, Animation.static())
+        return Obstacle(nodes, True, Animation.static(), is_static=is_static)
 
     @staticmethod
-    def create_mpc_dynamic(p1: ArrayLike, p2: ArrayLike, freq: float, rx: float, ry: float, angle: float, corners: int = 12) -> 'Obstacle':
+    def create_mpc_dynamic(p1: ArrayLike, p2: ArrayLike, freq: float, rx: float, ry: float, angle: float, corners: int = 12, is_static=False) -> 'Obstacle':
         """Creates a dynamic obstacle according to the MPC paper https://doi.org/10.1109/CASE49439.2021.9551644"""
         nodes = np.zeros((corners, 2))
         for i in range(corners):
             angle = 2 * pi * i / corners
             nodes[i, :] = (rx * cos(angle), -ry * sin(angle))
-        return Obstacle(nodes, False, Animation.periodic(p1, p2, freq, angle, offset=0.5 * pi / freq))
+        offset = 0.5*pi/freq if freq > 0 else 0
+        return Obstacle(nodes, False, Animation.periodic(p1, p2, freq, angle, offset=offset), is_static=is_static)
 
 
 class Boundary:

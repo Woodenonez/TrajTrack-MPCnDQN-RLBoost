@@ -11,11 +11,13 @@ import matplotlib.pyplot as plt
 from shapely.geometry import LineString
 from extremitypathfinder import PolygonEnvironment
 
-from . import plot, MobileRobot, MapGenerator
+from . import plot, MobileRobot, MapGenerator, MapDescription
 from .components.component import Component
 
 from typing import Union, List, Tuple
 from numpy.typing import NDArray
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 
 GYM_0_22_X = version.parse(gym.__version__) >= version.parse("0.22.0")
@@ -48,9 +50,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
     def __init__(self, components: list[Component], generate_map: MapGenerator, time_step: float = 0.1):
         """
         :param components: The components which this environemnt should use.
-                           You did read the project README right?
-        :param generate_map: Map generation function. ou did read the project
-                             README right?
+        :param generate_map: Map generation function. 
         """
         self.components = components
         self.generate_map = generate_map
@@ -88,7 +88,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
     def _get_info(self) -> dict:
         return {}
 
-    def _update_status(self, reset: bool = False) -> None:
+    def update_status(self, reset: bool = False) -> None:
         """
         Update some cached status variables for the current run of the
         environment.
@@ -101,6 +101,10 @@ class TrajectoryPlannerEnvironment(gym.Env):
             self.collided = False
             self.reached_goal = False
 
+            self.traversed_positions = [self.agent.position.copy()]
+            self.speeds = [self.agent.speed]
+            self.angular_velocities = [self.agent.angular_velocity]
+
         self.collided_with_obstacle |= any(o.collides(self.agent) for o in self.obstacles)
         self.collided_with_boundary |= self.boundary.collides(self.agent)
         self.collided |= self.collided_with_obstacle or self.collided_with_boundary
@@ -108,7 +112,11 @@ class TrajectoryPlannerEnvironment(gym.Env):
 
         self.path_progress = self.path.project(self.agent.point)
 
-    @DeprecationWarning
+        self.traversed_positions.append(self.agent.position.copy())
+        self.speeds.append(self.agent.speed)
+        self.angular_velocities.append(self.agent.angular_velocity)
+
+    # @DeprecationWarning
     def _update_reference_path(self) -> bool:
         """
         Updates the reference path
@@ -142,6 +150,9 @@ class TrajectoryPlannerEnvironment(gym.Env):
             self.obsv['external'] = self.external_obs_component.external_obs()
         return self.obsv
     
+    def get_map_description(self) -> MapDescription:
+        return (self.agent, self.boundary, self.obstacles, self.goal)
+
     def reset(self, seed=None, options=None) -> tuple[dict, dict]:
         if GYM_0_22_X:
             super().reset(seed=seed) # following line to seed self.np_random
@@ -150,11 +161,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
             self.agent, self.boundary, self.obstacles, self.goal = self.generate_map()
             if self._update_reference_path():
                 break
-        self._update_status(True)
-
-        self.traversed_positions = [self.agent.position.copy()]
-        self.speeds = [self.agent.speed]
-        self.angular_velocities = [self.agent.angular_velocity]
+        self.update_status(True)
 
         self.last_render_at = 0
 
@@ -180,6 +187,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
         self.path = LineString(path)
 
     def set_geometric_map(self, boundary, obstacle_list) -> None:
+        raise NotImplementedError("This method is not implemented yet.")
         self.boundary = boundary
         self.obstacles = obstacle_list
 
@@ -190,15 +198,12 @@ class TrajectoryPlannerEnvironment(gym.Env):
 
     def step_agent(self, action: int) -> None:
         self.agent.step(action, self.time_step)
-        self.traversed_positions.append(self.agent.position.copy())
-        self.speeds.append(self.agent.speed)
-        self.angular_velocities.append(self.agent.angular_velocity)
 
     def step(self, action: int) -> tuple[dict, float, bool, bool, dict]:
         self.step_obstacles()
         self.step_agent(action)
 
-        self._update_status()
+        self.update_status()
 
         observation = self.get_observation()
         reward = float(sum(c.step(action) for c in self.components))
@@ -210,43 +215,45 @@ class TrajectoryPlannerEnvironment(gym.Env):
         else:
             return observation, reward, terminated, info
 
-
-    def render(self, mode:str="human", pred_positions=None) -> Union[None, NDArray[np.uint8]]:
+    def render(self, mode:str="human", pred_positions=None, ref_traj=None) -> Union[None, NDArray[np.uint8]]:
         if not self.rendered:
             self.rendered = True
             if mode == "human":
                 plt.ion()
-            self.fig, self.ax = plt.subplot_mosaic([[0, 1], [0, 2]], constrained_layout=True, gridspec_kw={'width_ratios':[2, 1]})
+            self.fig, self.axes = plt.subplots(1, 2, constrained_layout=True)
 
-        for ax in self.ax.values():
+        for ax in self.axes.ravel():
             ax.cla()
 
-        plot.obstacles(self.ax[0], self.obstacles)
-        plot.boundary(self.ax[0], self.boundary)
-        plot.reference_path(self.ax[0], self.path)
-        plot.robot(self.ax[0], self.agent)
-        plot.line(self.ax[0], self.traversed_positions, "b", label="robot path")
+        plot.obstacles(self.axes[0], self.obstacles)
+        plot.boundary(self.axes[0], self.boundary)
+        plot.reference_path(self.axes[0], self.path)
+        plot.robot(self.axes[0], self.agent)
+        plot.line(self.axes[0], self.traversed_positions, "b", label="robot path")
 
         ### XXX
         if pred_positions is not None:
-            self.ax[0].plot(np.array(pred_positions)[:, 0], np.array(pred_positions)[:, 1], "mx-", label="Predicted path")
+            self.axes[0].plot(np.array(pred_positions)[:, 0], np.array(pred_positions)[:, 1], "mx-", label="Predicted path")
+        if ref_traj is not None:
+            self.axes[0].plot(np.array(ref_traj)[:, 0], np.array(ref_traj)[:, 1], "gx-", label="Reference path")
+
 
         for component in self.components:
-            component.render(self.ax[0])
+            component.render(self.axes[0])
 
-        self.ax[0].legend(bbox_to_anchor=(0.5, 1.04), loc="lower center")
-        self.ax[0].set_aspect('equal')
+        self.axes[0].legend(bbox_to_anchor=(0.5, 1.04), loc="lower center")
+        self.axes[0].set_aspect('equal')
 
         times = np.arange(len(self.speeds))
-        self.ax[1].plot(times, self.speeds, label="Speed [m/s]")
-        self.ax[1].plot(times, self.angular_velocities, label="Angular velocity [rad/s]")
-        self.ax[1].legend(bbox_to_anchor=(0.5, 1.04), loc="lower center")
+        self.axes[1].plot(times, self.speeds, label="Speed [m/s]")
+        self.axes[1].plot(times, self.angular_velocities, label="Angular velocity [rad/s]")
+        self.axes[1].legend(bbox_to_anchor=(0.5, 1.04), loc="lower center")
 
-        external = self.obsv.get("external")
-        if external is not None and len(external.shape) == 3 and external.dtype == np.uint8:
-            self.ax[2].imshow(external.transpose([1, 2, 0]))
-        else:
-            self.ax[2].set_axis_off()
+        # external = self.obsv.get("external")
+        # if external is not None and len(external.shape) == 3 and external.dtype == np.uint8:
+        #     self.axes[2].imshow(external.transpose([1, 2, 0]))
+        # else:
+        #     self.axes[2].set_axis_off()
 
         dt = time() - self.last_render_at
         self.last_render_at = time()
@@ -255,6 +262,11 @@ class TrajectoryPlannerEnvironment(gym.Env):
 
         self.fig.tight_layout()
         self.fig.canvas.draw()
+
+        plt.pause(0.01)
+        # while not plt.waitforbuttonpress(0.01):
+        #     pass
+
         if mode == "human":
             self.fig.canvas.flush_events()
         else:

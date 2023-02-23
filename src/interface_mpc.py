@@ -8,7 +8,7 @@ from mpc_traj_tracker._path import PathNodeList
 
 from util import utils_geo
 
-from typing import Callable
+from typing import Callable, List, Tuple
 
 
 DEFAULT_MOTION_MODEL = motion_model.unicycle_model
@@ -33,6 +33,10 @@ class InterfaceMpc:
         return self._traj_gen.state
     
     @property
+    def last_action(self):
+        return self._last_action
+    
+    @property
     def goal(self):
         return self._traj_gen.final_goal
     
@@ -47,11 +51,11 @@ class InterfaceMpc:
     def set_current_state(self, state: np.ndarray):
         self._traj_gen.set_current_state(state)
 
-    def initialization(self, init_states: np.ndarray, goal_states: np.ndarray, ref_path: PathNodeList, mode:str='work'):
-        self._ref_path = ref_path
-        self._traj_gen.load_init_states(init_states, goal_states)
+    def initialization(self, init_state: np.ndarray, goal_state: np.ndarray, ref_path_list: List[tuple], mode:str='work'):
+        self._ref_path = PathNodeList.from_tuples(ref_path_list)
+        self._traj_gen.load_init_state(init_state, goal_state)
         self._traj_gen.set_work_mode(mode)
-        self._traj_gen.set_ref_trajectory(ref_path)
+        self._traj_gen.set_ref_trajectory(self.ref_path)
     
     def update_static_constraints(self, obstacle_list):
         for i, map_obstacle in enumerate(obstacle_list):
@@ -66,16 +70,19 @@ class InterfaceMpc:
     def update_other_robot_states(self, other_robot_states):
         self.other_robot_states = other_robot_states
 
-    def get_local_ref_traj(self):
+    def get_local_ref_traj(self, local_ref_traj:np.ndarray=None) -> Tuple[np.ndarray, np.ndarray]:
         idx_ref = self._traj_gen.idx_ref
-        ref_traj, idx_ref = self._traj_gen.get_local_ref_traj(idx_ref, self.ref_traj, self.state, action_steps=self.config.action_steps, horizon=self.N_hor)
+        original_ref_traj, idx_ref = self._traj_gen.get_local_ref_traj(idx_ref, self.ref_traj, self.state, action_steps=self.config.action_steps, horizon=self.config.N_hor)
         self._traj_gen.idx_ref = idx_ref
-        return ref_traj
+        if local_ref_traj is not None:
+            if local_ref_traj.shape[1] == 2:
+                local_ref_traj = np.concatenate((local_ref_traj, original_ref_traj[:,[2]]), axis=1)
+        return original_ref_traj, local_ref_traj
     
-    def get_action(self, current_ref_traj, mode='work'):
+    def get_action(self, current_ref_traj: np.ndarray, mode='work', initial_guess:np.ndarray=None):
         if self._traj_gen.check_termination_condition(self.state, self._last_action, self.goal):
             return None
         actions, pred_states, cost = self._traj_gen.run_step(self.stc_constraints, self.dyn_constraints, 
-                                                             self.other_robot_states, current_ref_traj, mode)
+                                                             self.other_robot_states, current_ref_traj, mode, initial_guess)
         self._last_action = actions[0]
         return actions[0], pred_states, cost

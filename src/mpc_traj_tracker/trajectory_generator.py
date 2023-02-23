@@ -80,7 +80,7 @@ class TrajectoryGenerator:
         """
         self.motion_model = motion_model
 
-    def load_init_states(self, current_state: np.ndarray, goal_state: np.ndarray):
+    def load_init_state(self, current_state: np.ndarray, goal_state: np.ndarray):
         if (not isinstance(current_state, np.ndarray)) or (not isinstance(goal_state, np.ndarray)):
             raise TypeError(f'State and action should be numpy.ndarry, got {type(current_state)}/{type(goal_state)}.')
         self.state = current_state
@@ -232,7 +232,7 @@ class TrajectoryGenerator:
         return ref_traj_local, idx_next
 
 
-    def run_step(self, stc_constraints:list, dyn_constraints:list, other_robot_states:list, current_ref_traj:np.ndarray, mode:str='safe'):
+    def run_step(self, stc_constraints:list, dyn_constraints:list, other_robot_states:list, current_ref_traj:np.ndarray, mode:str='safe', initial_guess:np.ndarray=None):
         '''
         Description:
             Run the trajectory planner for one step.
@@ -273,8 +273,9 @@ class TrajectoryGenerator:
                  self.tuning_params + current_refs + speed_ref_list + \
                  other_robot_states + \
                  stc_constraints + dyn_constraints + self.stc_weights + self.dyn_weights
+
         try:
-            taken_states, pred_states, actions, cost, solver_time, exit_status = self.run_solver(params, self.state, self.config.action_steps)
+            taken_states, pred_states, actions, cost, solver_time, exit_status = self.run_solver(params, self.state, self.config.action_steps, initial_guess)
         except RuntimeError as err:
             if self.use_tcp:
                 self.mng.kill()
@@ -292,7 +293,7 @@ class TrajectoryGenerator:
 
         return actions, pred_states, cost
 
-    def run_solver(self, parameters:list, state: np.ndarray, take_steps:int=1):
+    def run_solver(self, parameters:list, state: np.ndarray, take_steps:int=1, initial_guess:np.ndarray=None):
         '''
         Description:
             Run the solver for the pre-defined MPC problem.
@@ -314,7 +315,7 @@ class TrajectoryGenerator:
             return self.run_solver_tcp(parameters, state, take_steps)
 
         import opengen as og
-        solution:og.opengen.tcp.solver_status.SolverStatus = self.solver.run(parameters)
+        solution:og.opengen.tcp.solver_status.SolverStatus = self.solver.run(parameters, initial_guess)
         
         u = solution.solution
         cost:float = solution.cost
@@ -370,3 +371,17 @@ class TrajectoryGenerator:
         actions = [np.array(action) for action in actions]
         return taken_states, pred_states, actions, cost, solver_time, exit_status
 
+    def _vis_params(self, params, current_ref_traj):
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+
+        state = params[:self.ns]
+        finish_state = params[self.ns:2*self.ns]
+        
+        ax.plot(state[0], state[1], 'ro', label='start')
+        ax.plot(finish_state[0], finish_state[1], 'go', label='finish')
+        ax.plot(current_ref_traj[:,0], current_ref_traj[:,1], 'b', label='ref')
+
+        ax.axis('equal')
+        ax.legend()
+        plt.show()

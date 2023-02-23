@@ -13,8 +13,9 @@ from shapely.geometry import LineString, Polygon, JOIN_STYLE, Point
 
 from ..environment import MobileRobot, Obstacle, Boundary, Goal, MapDescription, MapGenerator
 
-from typing import Union
+from typing import Union, List, Tuple
 
+### Training maps ###
 
 def generate_map_mpc(i: Union[int, None] = None) -> MapGenerator:
     """
@@ -250,3 +251,119 @@ def generate_map_corridor() -> MapDescription:
                 break
     
     return robot, boundary, obstacles, goal
+
+
+### Test maps ###
+"""
+Scene 1: Crosswalk
+    - a. Single rectangular static obstacle (small, medium, large)
+    - b. Two rectangular static obstacles (small/large stagger, close/far aligned)
+    - c. Single non-convex static obstacle (deep/shallow u-/v-shape)
+    - d. Single dynamic obstacle (crash, cross)
+    --------------------
+                |   |
+    R =>    S   | D |
+    --------------------
+
+Scene 2: Tuning
+    - a. No obstacles
+    - b. Single rectangular obstacle
+    - c. Single dynamic obstacle
+    |-------|
+    |   ->  \
+    | R |\   \
+"""
+
+
+def generate_map_scene_1(sub_index: int, scene_option: int) -> MapDescription:
+    """
+    Subscene index (`sub_index`) with scene option (`scene_option`): 
+    - 1: Single rectangular static obstacle 
+        - (1-small, 2-medium, 3-large)
+    - 2: Two rectangular static obstacles 
+        - (1-small stagger, 2-large stagger, 3-close aligned, 4-far aligned)
+    - 3: Single non-convex static obstacle
+        - (1-big u-shape, 2-small u-shape, 3-big v-shape, 4-small v-shape)
+    - 4: Single dynamic obstacle
+        - (1-crash, 2-cross)
+    """
+    scene_1_robot = MobileRobot(np.array([0.6, 3.5, 0, 0, 0]))
+    scene_1_boundary = Boundary([(0.0, 0.0), (16.0, 0.0), (16.0, 10.0), (0.0, 10.0)])
+    scene_1_obstacles_list = [[(0.0, 1.5), (0.0, 1.6), (9.0, 1.6), (9.0, 1.5)],
+                            [(0.0, 8.4), (0.0, 8.5), (9.0, 8.5), (9.0, 8.4)],
+                            [(11.0, 1.5), (11.0, 1.6), (16.0, 1.6), (16.0, 1.5)],
+                            [(11.0, 8.4), (11.0, 8.5), (16.0, 8.5), (16.0, 8.4)],]
+    scene_1_obstacles = [Obstacle.create_mpc_static(obstacle) for obstacle in scene_1_obstacles_list]
+    scene_1_goal = Goal((15.4, 3.5))
+
+    unexpected_obstacles:List[Obstacle] = []
+
+    if sub_index == 1:
+        if scene_option == 1:
+            unexpected_obstacle = Obstacle.create_mpc_static([(7.5, 3.0), (7.5, 4.0), (8.5, 4.0), (8.5, 3.0)]) # small
+        elif scene_option == 2:
+            unexpected_obstacle = Obstacle.create_mpc_static([(7.2, 2.8), (7.2, 4.2), (8.8, 4.2), (8.8, 2.8)]) # medium
+        elif scene_option == 3:
+            unexpected_obstacle = Obstacle.create_mpc_static([(7.0, 2.5), (7.0, 4.5), (9.0, 4.5), (9.0, 2.5)]) # large
+        else:
+            raise ValueError(f"Invalid scene {sub_index} option, should be 1~3.")
+        unexpected_obstacle.visible_on_reference_path = False
+        unexpected_obstacles.append(unexpected_obstacle)
+
+    elif sub_index == 2:
+        if scene_option == 1:
+            unexpected_obstacle_1 = Obstacle.create_mpc_static([(5,1.5), (5,4), (6,4), (6,1.5)])
+            unexpected_obstacle_2 = Obstacle.create_mpc_static([(8,3), (8,8), (9,8), (9,3)])
+        elif scene_option == 2:
+            unexpected_obstacle_1 = Obstacle.create_mpc_static([(5,1.5), (5,5), (6,5), (6,1.5)])
+            unexpected_obstacle_2 = Obstacle.create_mpc_static([(8,3), (8,8), (9,8), (9,3)])
+        elif scene_option == 3:
+            unexpected_obstacle_1 = Obstacle.create_mpc_static([(4.2, 2.8), (4.2, 4.2), (5.8, 4.2), (5.8, 2.8)])
+            unexpected_obstacle_2 = Obstacle.create_mpc_static([(6.2, 2.8), (6.2, 4.2), (7.8, 4.2), (7.8, 2.8)])
+        elif scene_option == 4:
+            unexpected_obstacle_1 = Obstacle.create_mpc_static([(4.2, 2.8), (4.2, 4.2), (5.8, 4.2), (5.8, 2.8)])
+            unexpected_obstacle_2 = Obstacle.create_mpc_static([(8.2, 2.8), (8.2, 4.2), (9.8, 4.2), (9.8, 2.8)])
+        else:
+            raise ValueError(f"Invalid scene {sub_index} option, should be 1~4.")
+        unexpected_obstacles.append(unexpected_obstacle_1)
+        unexpected_obstacles.append(unexpected_obstacle_2)
+
+    elif sub_index == 3:
+        unexpected_obstacle_3 = None
+        if scene_option == 1:
+            unexpected_obstacle_1 = Obstacle.create_mpc_static([(6.0, 4.5), (6.0, 5.0), (8.5, 5.0), (8.5, 4.5)])
+            unexpected_obstacle_2 = Obstacle.create_mpc_static([(8.5, 5.0), (8.5, 2.0), (8.0, 2.0), (8.0, 5.0)])
+            unexpected_obstacle_3 = Obstacle.create_mpc_static([(8.5, 2.0), (6.0, 2.0), (6.0, 2.5), (8.5, 2.5)])
+        elif scene_option == 2:
+            unexpected_obstacle_1 = Obstacle.create_mpc_static([(6.0, 4.0), (6.0, 4.5), (7.5, 4.5), (7.5, 4.0)])
+            unexpected_obstacle_2 = Obstacle.create_mpc_static([(7.5, 4.5), (7.5, 2.0), (7.0, 2.0), (7.0, 4.5)])
+            unexpected_obstacle_3 = Obstacle.create_mpc_static([(7.5, 2.0), (6.0, 2.0), (6.0, 2.5), (7.5, 2.5)])
+        elif scene_option == 3:
+            unexpected_obstacle_1 = Obstacle.create_mpc_static([(6.0, 5.0), (9.5, 5.0), (9.5, 3.5), (9.0, 3.5)])
+            unexpected_obstacle_2 = Obstacle.create_mpc_static([(9.5, 3.5), (9.5, 2.0), (6.0, 2.0), (9.0 ,3.5)])
+        elif scene_option == 4:
+            unexpected_obstacle_1 = Obstacle.create_mpc_static([(6.5, 4.5), (8.5, 4.5), (8.5, 3.5), (8.0, 3.5)])
+            unexpected_obstacle_2 = Obstacle.create_mpc_static([(8.5, 3.5), (8.5, 2.5), (6.5, 2.5), (8.0, 3.5)])
+        else:
+            raise ValueError(f"Invalid scene {sub_index} option, should be 1~4.")
+        unexpected_obstacles.append(unexpected_obstacle_1)
+        unexpected_obstacles.append(unexpected_obstacle_2)
+        if unexpected_obstacle_3 is not None:
+            unexpected_obstacles.append(unexpected_obstacle_3)
+
+    elif sub_index == 4:
+        raise NotImplementedError
+    
+    else:
+        raise ValueError(f"Invalid scene index, should be 1~4.")
+
+    for o in unexpected_obstacles:
+        o.visible_on_reference_path = False
+    scene_1_obstacles.extend(unexpected_obstacles)
+
+    return scene_1_robot, scene_1_boundary, scene_1_obstacles, scene_1_goal
+
+
+
+
+

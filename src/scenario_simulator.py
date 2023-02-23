@@ -187,7 +187,7 @@ class Simulator:
             mode     = self.robot_dict[r_id]['mode']
             ref_path = self.robot_dict[r_id]['ref_path']
             traj_gen:TrajectoryGenerator = self.robot_dict[r_id]['traj_gen']
-            traj_gen.load_init_states(start, end)
+            traj_gen.load_init_state(start, end)
             traj_gen.set_work_mode(mode)
             traj_gen.set_ref_trajectory(ref_path)
         stc_constraints = [0.0] * self.config.Nstcobs * self.config.nstcobs

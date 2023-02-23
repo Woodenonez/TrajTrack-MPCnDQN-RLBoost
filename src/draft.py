@@ -10,10 +10,17 @@ from PIL import Image, ImageFilter
 import casadi as cs
 from scipy import interpolate
 
-from shapely.geometry import LinearRing, Point, Polygon
+from shapely.geometry import LinearRing, Point, Polygon, LineString
 
-a = np.array([[1,2,3], [4,5,6]])
-print(a.tolist())
+
+def ref_traj_filter(decay=0.9999):
+    for i in range(20):
+        decay *= decay
+        if decay < 1e-2:
+            decay = 0.0
+        print(decay)
+
+ref_traj_filter(decay=0.9999)
 
 sys.exit(0)
 

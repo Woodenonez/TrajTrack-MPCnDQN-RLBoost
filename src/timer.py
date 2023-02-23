@@ -13,7 +13,9 @@ class PieceTimer:
     def __init__(self) -> None:
         self._instant = timeit.default_timer()
 
-    def __call__(self, round_decimals:int=4) -> float:
+    def __call__(self, round_decimals:int=4, ms=False) -> float:
+        if ms:
+            return round((timeit.default_timer()-self._instant)*1000, round_decimals)
         return round(timeit.default_timer()-self._instant, round_decimals)
 
     def reset(self):

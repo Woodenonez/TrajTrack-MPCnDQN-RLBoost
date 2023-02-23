@@ -83,13 +83,16 @@ class MobileRobot:
         next_state = state + d_state
         return next_state
         
-    def step_with_same_velocity(self, time_step: float) -> None:
-        self.step(4, time_step)
+    def step_with_max_speed(self, time_step: float) -> None:
+        self.step_with_decay_angular_velocity(time_step, max_speed=True)
 
-    def step_with_decay_angular_velocity(self, time_step: float, n_step: int) -> None:
+    def step_with_decay_angular_velocity(self, time_step: float, max_speed:bool=False) -> None:
         self.angular_velocity *= 0.9
         self.angle += time_step * self.angular_velocity
-        self.position += time_step * self.speed * np.asarray((np.cos(self.angle), np.sin(self.angle)))
+        if max_speed:
+            self.position += time_step * self.cfg.SPEED_MAX * np.asarray((np.cos(self.angle), np.sin(self.angle)))
+        else:
+            self.position += time_step * self.speed * np.asarray((np.cos(self.angle), np.sin(self.angle)))
 
     def step(self, action_index: int, time_step: float) -> None:
         """

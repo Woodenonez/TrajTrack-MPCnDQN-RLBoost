@@ -15,8 +15,8 @@ from visualizer.mpc_plot import MpcPlotAfter
 
 
 ### Customize
-# CONFIG_FN = 'mpc_test.yaml'
-CONFIG_FN = 'mpc_default.yaml'
+CONFIG_FN = 'mpc_test.yaml'
+# CONFIG_FN = 'mpc_default.yaml'
 # CONFIG_FN = 'mpc_fullcnst.yaml'
 # CONFIG_FN = 'mpc_hardcnst.yaml'
 # CONFIG_FN = 'mpc_softcnst.yaml'
