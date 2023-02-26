@@ -19,7 +19,7 @@ Comments:
     Adjust MAX_SOVLER_TIME accordingly.
 '''
 
-MAX_SOVLER_TIME = 100_000 # micros (0.1 sec)
+MAX_SOVLER_TIME = 5_000_000 # micros (default 5 sec)
 
 #%%## Helper functions ###
 def dist_to_points_square(point:cs.SX, points:List[Union[cs.SX, cs.DM]]):

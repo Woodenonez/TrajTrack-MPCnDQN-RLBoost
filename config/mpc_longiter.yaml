@@ -1,0 +1,55 @@
+# This constitutes the default configuration file for the mpc-generator. 
+# Reference:  Trajectory Generation for Mobile Robots in a Dynamic Environment using Nonlinear Model Predictive Control. [CASE2021]
+# This constitutes the default configuration file for the mpc-generator. 
+################################################################################
+
+# Physical parameters and limitations of the motion model
+vehicle_width:  0.5  # Vehicle width in meters
+vehicle_margin: 0.1  # Vehicle extra safe margin
+social_margin: 0.2   # Vehicle extra social margin for soft loss terms
+lin_vel_min: -0.5    # Vehicle contraint on the minimal velocity possible
+lin_vel_max: 1.5     # Vehicle contraint on the maximal velocity possible
+lin_acc_min: -1      # Vehicle contraint on the maximal linear retardation
+lin_acc_max: 1       # Vehicle contraint on the maximal linear acceleration
+ang_vel_max: 0.5     # Vehicle contraint on the maximal angular velocity
+ang_acc_max: 3       # Vehicle contraint on the maximal angular acceleration (considered to be symmetric)
+
+# Velocity profile (proportional to the maximal speed)
+full_speed:   1.0
+high_speed:   0.8
+medium_speed: 0.5
+low_speed:    0.2
+
+# Parameters specific to the MPC
+ts: 0.2          # Size of the time-step (sampling time)
+N_hor: 20        # The length of the receding horizon controller
+action_steps: 1  # How many steps should be taken from each mpc-solution. Range (1 - N_hor)
+
+# Penalty weights
+lin_vel_penalty: 0      # Cost for linear velocity control action (should be 0)
+lin_acc_penalty: 10.0   # Cost for linear acceleration 
+ang_vel_penalty: 0      # Cost angular velocity control action
+ang_acc_penalty: 20.0   # Cost angular acceleration
+qrpd: 100.0             # Cost for reference path deviation
+qpos: 0.0               # Cost for position deviation each time step to the reference
+qvel: 10.0              # Cost for speed    deviation each time step to the reference
+qtheta: 0.0             # Cost for heading  deviation each time step to the reference
+# Terminal weights
+qpN: 0.0                # Terminal cost; error relative to final reference position         
+qthetaN: 0.0            # Terminal cost; error relative to final reference heading     
+
+# Helper variables (Generally does not have to be changed)
+nu: 2     # Number of control inputs (speed and angular speed)
+ns: 3     # Number of states for the robot (x,y,theta,e) [e is the channel width/permitted error, not included yet]
+nq: 10    # Number of optimization penalties
+Nother:  10  # Maximal number of other robots
+Nstcobs: 10  # Maximal number of static obstacles
+nstcobs: 12  # Number of variables per obstacles, (4 edges * 3 per edge)
+Ndynobs: 15  # Maximal number of dynamic obstacles
+ndynobs: 6   # Number of variables per dynamic obstacle
+
+# Building options in the optimizer
+build_type: 'release'          # Can have 'debug' or 'release'
+build_directory: 'mpc_solver'   # Name of the directory where the build is created
+bad_exit_codes: ["NotConvergedIterations", "NotConvergedOutOfTime"] # Optimizer specific names, otherwise "Converged"
+optimizer_name: 'navi_longiter'   # optimizer name

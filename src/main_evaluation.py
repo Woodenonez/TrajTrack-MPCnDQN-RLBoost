@@ -1,7 +1,6 @@
 ### System import
 import os
 import pathlib
-import random
 import copy
 
 import numpy as np
@@ -13,7 +12,7 @@ from torch import no_grad
 from stable_baselines3 import DQN
 from stable_baselines3.common import env_checker
 
-from pkg_dqn.environment import MapDescription, MobileRobot
+from pkg_dqn.environment import MobileRobot
 from pkg_dqn.environment.environment import TrajectoryPlannerEnvironment
 
 ### MPC import
@@ -21,14 +20,14 @@ from interface_mpc import InterfaceMpc
 from util.mpc_config import Configurator
 
 ### Helper
-from main_pre import generate_map, get_geometric_map, HintSwitcher
+from main_pre import generate_map, get_geometric_map, HintSwitcher, Metrics
+from pkg_dqn.utils.map import test_scene_1_dict, test_scene_2_dict
 
 ### Others
 from timer import PieceTimer, LoopTimer
 from typing import List, Tuple
 
 MAX_RUN_STEP = 200
-
 
 def ref_traj_filter(original: np.ndarray, new: np.ndarray, decay=1):
     filtered = original.copy()
@@ -68,20 +67,21 @@ def load_rl_model_env(generate_map, index: int) -> Tuple[DQN, TrajectoryPlannerE
     model = DQN.load(model_path)
     return model, env_eval
 
-def load_mpc(config_path: str):
-    config = Configurator(config_path)
+def load_mpc(config_path: str, verbose: bool = True):
+    config = Configurator(config_path, verbose=verbose)
     traj_gen = InterfaceMpc(config, motion_model=None) # default motion model is used
     return traj_gen
 
 
-def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[int, int, int]=(1, 1, 1)):
+def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[int, int, int]=(1, 1, 1), verbose:bool=False):
     """
     Args:
         rl_index: 0 for image, 1 for ray
         decision_mode: 0 for pure rl, 1 for pure mpc, 2 for hybrid
     """
-    prt_decision_mode = {0: 'pure_rl', 1: 'pure_mpc', 2: 'hybrid'}
-    print(f"The decision mode is: {prt_decision_mode[decision_mode]}")
+    if verbose:
+        prt_decision_mode = {0: 'pure_rl', 1: 'pure_mpc', 2: 'hybrid'}
+        print(f"The decision mode is: {prt_decision_mode[decision_mode]}")
 
     time_list = []
 
@@ -89,11 +89,12 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
 
     CONFIG_FN = 'mpc_longiter.yaml'
     cfg_fpath = os.path.join(pathlib.Path(__file__).resolve().parents[1], 'config', CONFIG_FN)
-    traj_gen = load_mpc(cfg_fpath)
-    geo_map = get_geometric_map(env_eval.get_map_description(), inflate_margin=0.8)
+    traj_gen = load_mpc(cfg_fpath, verbose=verbose)
+    geo_map = get_geometric_map(env_eval.get_map_description(), inflate_margin=0.7)
     traj_gen.update_static_constraints(geo_map.processed_obstacle_list) # assuming static obstacles not changed
 
     done = False
+    success = False
     with no_grad():
         while not done:
             obsv = env_eval.reset()
@@ -114,6 +115,8 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
 
             for i in range(0, MAX_RUN_STEP):
 
+                print(f"\r{decision_mode}, {i+1}/{MAX_RUN_STEP}", end="  ")
+
                 if decision_mode == 0:
                     traj_gen.set_current_state(env_eval.agent.state)
                     original_ref_traj, _ = traj_gen.get_local_ref_traj() # just for output
@@ -127,6 +130,7 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                     # env_eval.update_status(reset=False)
                     # obsv = env_eval.get_observation()
                     # done = env_eval.update_termination()
+                    # info = env_eval.get_info()
 
                 elif decision_mode == 1:
                     env_eval.set_agent_state(traj_gen.state[:2], traj_gen.state[2], 
@@ -167,7 +171,6 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                         if j == 0:
                             robot_sim.step(action_index, traj_gen.config.ts)
                         else:
-                            # robot_sim.step_with_decay_angular_velocity(0.1)
                             robot_sim.step_with_ref_speed(traj_gen.config.ts, 1.0)
                         rl_ref.append(list(robot_sim.position))
                     last_rl_time = timer_rl(4, ms=True)
@@ -205,45 +208,76 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                         print(f"Step {i}.Runtime (HYB): {last_mpc_time+last_rl_time} = {last_mpc_time}+{last_rl_time}ms")
 
 
-                if to_plot & (i%10==0): # render
-                    env_eval.render(pred_positions=rl_ref, ref_traj=chosen_ref_traj, original_traj=original_ref_traj)
+                if to_plot & (i%1==0): # render every third frame
+                    env_eval.render(pred_positions=rl_ref, ref_traj=chosen_ref_traj)
 
                 if i == MAX_RUN_STEP - 1:
                     done = True
-                    print('Time out!')
+                    if verbose:
+                        print('Time out!')
                 if done:
                     if to_plot:
-                        input(f"Finish (Succeed: {info['success']})! Press enter to continue...")
+                        input('Collision or finish! Press enter to continue...')
                     break
 
-    print(f"Average time ({prt_decision_mode[decision_mode]}): {np.mean(time_list)}ms\n")
-    return time_list
+    action_list = [(v, w) for (v, w) in zip(env_eval.speeds, env_eval.angular_velocities)]
+
+    if verbose:
+        print(f"Average time ({prt_decision_mode[decision_mode]}): {np.mean(time_list)}ms\n")
+    else:
+        print()
+    return time_list, info["success"], action_list, traj_gen.ref_traj, env_eval.traversed_positions, geo_map.obstacle_list
+
+def main_evaluate(rl_index: int, decision_mode: int, metrics: Metrics, scene_option:Tuple[int, int, int]) -> Metrics:
+    time_list, success, actions, ref_traj, actual_traj, obstacle_list = main_process(rl_index=rl_index, decision_mode=decision_mode, to_plot=False, scene_option=scene_option)
+    metrics.add_trial_result(computation_time_list=time_list, succeed=success, action_list=actions, 
+                             ref_trajectory=ref_traj, actual_trajectory=actual_traj, obstacle_list=obstacle_list)
+    return metrics
+
 
 if __name__ == '__main__':
     """
-    test_scene_1_dict = {1: [1, 2, 3], 2: [1, 2, 3, 4], 3: [1, 2, 3, 4]} # , 4: [1, 2]}
-    test_scene_2_dict = {1: [1, 2, 3]} # , 2: [1]
+    rl_index: 0: image, 1: ray
+    decision_mode: 0: dqn, 1: mpc, 2: hybrid
+
+    Map:
+    SCENE 1:
+    - 1: Single rectangular static obstacle 
+        - (1-small, 2-medium, 3-large)
+    - 2: Two rectangular static obstacles 
+        - (1-small stagger, 2-large stagger, 3-close aligned, 4-far aligned)
+    - 3: Single non-convex static obstacle
+        - (1-big u-shape, 2-small u-shape, 3-big v-shape, 4-small v-shape)
+    - 4: Single dynamic obstacle
+        - (1-crash, 2-cross)
+
+    SCENE 2:
+    - 1: Single rectangular obstacle
+        - (1-right, 2-sharp, 3-u-shape)
+    - 2: Single dynamic obstacle
+        - (1-right, 2-sharp, 3-u-shape)
     """
-    rl_index = 1 # 0: image, 1: ray
-    scene_option = (1, 1, 3)
+    rl_index = 1
+    num_trials = 20
+    scene_option = (2, 1, 3)
 
-    time_list_dqn = main(rl_index=rl_index, decision_mode=0,  to_plot=False, scene_option=scene_option)
-    time_list_mpc = main(rl_index=rl_index, decision_mode=1,  to_plot=False, scene_option=scene_option)
-    time_list_hyb = main(rl_index=rl_index, decision_mode=2,  to_plot=False, scene_option=scene_option)
+    dqn_metrics = Metrics(mode='dqn')
+    mpc_metrics = Metrics(mode='mpc')
+    hyb_metrics = Metrics(mode='hyb')
 
-    print(f"Average time: \nDQN {np.mean(time_list_dqn)}ms; \nMPC {np.mean(time_list_mpc)}ms; \nHYB {np.mean(time_list_hyb)}ms; \n")
+    for i in range(num_trials):
+        print(f"Trial {i+1}/{num_trials}")
+        dqn_metrics = main_evaluate(rl_index=1, decision_mode=0, metrics=dqn_metrics, scene_option=scene_option)
+        mpc_metrics = main_evaluate(rl_index=1, decision_mode=1, metrics=mpc_metrics, scene_option=scene_option)
+        hyb_metrics = main_evaluate(rl_index=1, decision_mode=2, metrics=hyb_metrics, scene_option=scene_option)
 
-    fig, axes = plt.subplots(1,2)
+    print(f"=== Scene {scene_option[0]}-{scene_option[1]}-{scene_option[2]} ===")
+    print(dqn_metrics.get_average())
+    print()
+    print(mpc_metrics.get_average())
+    print()
+    print(hyb_metrics.get_average())
+    print('='*50)
 
-    bin_list = np.arange(0, 150, 10)
-    # axes[0].hist(time_list_dqn, bins=bin_list, color='r', alpha=0.5, label='DQN')
-    axes[0].hist(time_list_mpc, bins=bin_list, color='b', alpha=0.5, label='MPC')
-    axes[0].hist(time_list_hyb, bins=bin_list, color='g', alpha=0.5, label='HYB')
-    axes[0].legend()
 
-    # axes[1].plot(time_list_dqn, color='r', ls='-', marker='x', label='DQN')
-    axes[1].plot(time_list_mpc, color='b', ls='-', marker='x', label='MPC')
-    axes[1].plot(time_list_hyb, color='g', ls='-', marker='x', label='HYB')
 
-    plt.show()
-    input('Press enter to exit...')

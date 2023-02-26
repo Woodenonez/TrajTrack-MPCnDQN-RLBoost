@@ -47,7 +47,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
     # Component producing external observations
     external_obs_component: Union[Component, None] = None
 
-    def __init__(self, components: list[Component], generate_map: MapGenerator, time_step: float = 0.1):
+    def __init__(self, components: list[Component], generate_map: MapGenerator, time_step: float = 0.2):
         """
         :param components: The components which this environemnt should use.
         :param generate_map: Map generation function. 
@@ -85,10 +85,10 @@ class TrajectoryPlannerEnvironment(gym.Env):
         # acceleration also has three possibilities left-middle-right
         self.action_space = spaces.Discrete(3 * 3)
 
-    def _get_info(self) -> dict:
-        return {}
+    def update_termination(self) -> bool:
+        return bool(self.collided or self.reached_goal)
 
-    def update_status(self, reset: bool = False) -> None:
+    def update_status(self, reset:bool=False) -> None:
         """
         Update some cached status variables for the current run of the
         environment.
@@ -117,7 +117,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
         self.angular_velocities.append(self.agent.angular_velocity)
 
     # @DeprecationWarning
-    def _update_reference_path(self) -> bool:
+    def _update_reference_path(self, inflation_margin:float=0.8) -> bool:
         """
         Updates the reference path
         """
@@ -126,7 +126,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
         # included in the reference path generation. Those obstacles that are
         # visible are padded by the agent radius
         obstacle_list_mitred = [
-            o.get_mitred_vertices()
+            o.get_mitred_vertices(inflation_margin)
             for o in self.obstacles
             if o.visible_on_reference_path
         ]
@@ -134,7 +134,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
         # Generate visibility grap
         environment = PolygonEnvironment()
         environment.store(
-            self.boundary.get_mitred_vertices(), obstacle_list_mitred, validate=False
+            self.boundary.get_mitred_vertices(0.5), obstacle_list_mitred, validate=False
         )
         environment.prepare()
 
@@ -142,6 +142,9 @@ class TrajectoryPlannerEnvironment(gym.Env):
         path, _ = environment.find_shortest_path(self.agent.position, self.goal.position) # path: list[tuple[float, float]]
         self.path = LineString(path)
         return len(path) > 0
+
+    def get_info(self) -> dict:
+        return {"success": self.reached_goal}
 
     def get_observation(self) -> dict:
         """Collects observations from all components and returns them"""
@@ -169,7 +172,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
             c.reset()
 
         observation = self.get_observation()
-        info = self._get_info()
+        info = self.get_info()
 
         if GYM_0_22_X:
             return observation, info
@@ -207,23 +210,34 @@ class TrajectoryPlannerEnvironment(gym.Env):
 
         observation = self.get_observation()
         reward = float(sum(c.step(action) for c in self.components))
-        terminated = bool(self.collided or self.reached_goal)
-        info = self._get_info()
+        terminated = self.update_termination()
+        info = self.get_info()
 
         if GYM_0_22_X:
             return observation, reward, terminated, False, info
         else:
             return observation, reward, terminated, info
 
-    def render(self, mode:str="human", pred_positions=None, ref_traj=None) -> Union[None, NDArray[np.uint8]]:
+    def render(self, mode:str="human", pred_positions=None, ref_traj=None, original_traj=None) -> Union[None, NDArray[np.uint8]]:
+        external = self.obsv.get("external")
+        show_image = False
+        if external is not None and len(external.shape) == 3 and external.dtype == np.uint8:
+            show_image = True
+
         if not self.rendered:
             self.rendered = True
             if mode == "human":
                 plt.ion()
-            self.fig, self.axes = plt.subplots(1, 2, constrained_layout=True)
+            if show_image:
+                self.fig, self.axes = plt.subplots(1, 3, constrained_layout=True)
+            else:
+                self.fig, self.axes = plt.subplots(1, 2, constrained_layout=True)
 
         for ax in self.axes.ravel():
             ax.cla()
+
+        if show_image:
+            self.axes[2].imshow(external.transpose([1, 2, 0]))
 
         plot.obstacles(self.axes[0], self.obstacles)
         plot.boundary(self.axes[0], self.boundary)
@@ -236,6 +250,8 @@ class TrajectoryPlannerEnvironment(gym.Env):
             self.axes[0].plot(np.array(pred_positions)[:, 0], np.array(pred_positions)[:, 1], "mx-", label="Predicted path")
         if ref_traj is not None:
             self.axes[0].plot(np.array(ref_traj)[:, 0], np.array(ref_traj)[:, 1], "gx-", label="Reference path")
+        if original_traj is not None:
+            self.axes[0].plot(np.array(original_traj)[:, 0], np.array(original_traj)[:, 1], "ro-", label="Original path")
 
 
         for component in self.components:
@@ -248,12 +264,6 @@ class TrajectoryPlannerEnvironment(gym.Env):
         self.axes[1].plot(times, self.speeds, label="Speed [m/s]")
         self.axes[1].plot(times, self.angular_velocities, label="Angular velocity [rad/s]")
         self.axes[1].legend(bbox_to_anchor=(0.5, 1.04), loc="lower center")
-
-        # external = self.obsv.get("external")
-        # if external is not None and len(external.shape) == 3 and external.dtype == np.uint8:
-        #     self.axes[2].imshow(external.transpose([1, 2, 0]))
-        # else:
-        #     self.axes[2].set_axis_off()
 
         dt = time() - self.last_render_at
         self.last_render_at = time()

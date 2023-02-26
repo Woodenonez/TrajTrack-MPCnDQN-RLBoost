@@ -12,15 +12,7 @@ from scipy import interpolate
 
 from shapely.geometry import LinearRing, Point, Polygon, LineString
 
-
-def ref_traj_filter(decay=0.9999):
-    for i in range(20):
-        decay *= decay
-        if decay < 1e-2:
-            decay = 0.0
-        print(decay)
-
-ref_traj_filter(decay=0.9999)
+print([(v, w) for (v, w) in zip(range(10), range(1,11))])
 
 sys.exit(0)
 

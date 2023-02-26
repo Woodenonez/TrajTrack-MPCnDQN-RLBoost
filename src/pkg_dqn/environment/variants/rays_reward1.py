@@ -11,7 +11,7 @@ class TrajectoryPlannerEnvironmentRaysReward1(TrajectoryPlannerEnvironment):
     def __init__(
         self,
         generate_map: MapGenerator,
-        time_step: float = 0.1,
+        time_step: float = 0.2,
         reference_path_sample_offset: float = 0,
         corner_samples: int = 3,
         use_memory: bool = True,

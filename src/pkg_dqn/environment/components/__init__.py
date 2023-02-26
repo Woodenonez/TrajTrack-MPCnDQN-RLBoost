@@ -1,22 +1,25 @@
 from .component import Component
-from .angular_velocity_observation import AngularVelocityObservation
-from .goal_angle_observation import GoalAngleObservation
-from .goal_distance_observation import GoalDistanceObservation
-from .goal_distance_reward import GoalDistanceReward
-from .speed_observation import SpeedObservation
-from .time_reward import TimeReward
-from .sector_observation import SectorObservation
-from .collision_reward import CollisionReward
-from .cross_track_reward import CrossTrackReward
-from .reference_path_sample_observation import ReferencePathSampleObservation
-from .reach_goal_reward import ReachGoalReward
-from .ray_observation import RayObservation
-from .sector_and_ray_observation import SectorAndRayObservation
-from .reference_path_corner_observation import ReferencePathCornerObservation
-from .image_observation import ImageObservation
-from .speed_reward import SpeedReward
-from .path_progress_reward import PathProgressReward
-from .excessive_speed_reward import ExcessiveSpeedReward
+
+from .reward_time import TimeReward
+from .reward_speed import SpeedReward
+from .reward_collision import CollisionReward
+from .reward_reach_goal import ReachGoalReward
+from .reward_cross_track import CrossTrackReward
+from .reward_path_progress import PathProgressReward
+from .reward_goal_distance import GoalDistanceReward
+from .reward_excessive_speed import ExcessiveSpeedReward
+
+from .int_obsv_speed import SpeedObservation
+from .int_obsv_goal_angle import GoalAngleObservation
+from .int_obsv_goal_distance import GoalDistanceObservation
+from .int_obsv_angular_velocity import AngularVelocityObservation
+from .int_obsv_reference_path_sample import ReferencePathSampleObservation
+from .int_obsv_reference_path_corner import ReferencePathCornerObservation
+
+from .ext_obsv_ray import RayObservation
+from .ext_obsv_image import ImageObservation
+from .ext_obsv_sector import SectorObservation
+from .ext_obsv_sector_and_ray import SectorAndRayObservation
 
 __all__ = [
     'Component',

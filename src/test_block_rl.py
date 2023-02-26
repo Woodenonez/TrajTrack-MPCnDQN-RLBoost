@@ -23,7 +23,7 @@ from pkg_dqn.utils.map import generate_map_dynamic, generate_map_corridor, gener
 
 from pkg_dqn.environment import MapDescription, MobileRobot
 
-TO_TRAIN = False
+TO_TRAIN = True
 TO_SAVE = False
 
 def generate_map() -> MapDescription:

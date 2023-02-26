@@ -174,13 +174,15 @@ class Obstacle:
             self._padded_polygon = Polygon(self.get_padded_vertices())
         return self._padded_polygon
 
-    def get_mitred_vertices(self) -> NDArray[np.float32]:
+    def get_mitred_vertices(self, inflation_margin:float=None) -> NDArray[np.float32]:
         """
         Returns the coordinates of the corners of the shape of this obstacle,
         padded by the robot radius (mitred padding)
         """
         polygon = Polygon(self.get_vertices())
-        return _exterior_nodes(polygon.buffer(MobileRobot().cfg.RADIUS, join_style=JOIN_STYLE.mitre, mitre_limit=2), 1)
+        if inflation_margin is None:
+            inflation_margin = MobileRobot().cfg.RADIUS
+        return _exterior_nodes(polygon.buffer(inflation_margin, join_style=JOIN_STYLE.mitre, mitre_limit=2), 1)
 
     def get_vertices(self) -> NDArray[np.float32]:
         """
@@ -214,7 +216,7 @@ class Obstacle:
         for i in range(corners):
             angle = 2 * pi * i / corners
             nodes[i, :] = (rx * cos(angle), -ry * sin(angle))
-        offset = 0.5*pi/freq if freq > 0 else 0
+        offset = 0 # 0.5*pi/freq if freq > 0 else 0
         return Obstacle(nodes, False, Animation.periodic(p1, p2, freq, angle, offset=offset), is_static=is_static)
 
 
@@ -243,13 +245,15 @@ class Boundary:
             self._padded_polygon = polygon.buffer(-MobileRobot().cfg.RADIUS, join_style=JOIN_STYLE.round, resolution=4)
         return self._padded_polygon
 
-    def get_mitred_vertices(self) -> NDArray[np.float32]:
+    def get_mitred_vertices(self, inflation_margin:float=None) -> NDArray[np.float32]:
         """
         Returns the coordinates of the corners of the shape of this boundary,
         padded by the robot radius (mitred padding)
         """
+        if inflation_margin is None:
+            inflation_margin = MobileRobot().cfg.RADIUS
         polygon = Polygon(self.vertices)
-        return _exterior_nodes(polygon.buffer(-MobileRobot().cfg.RADIUS, join_style=JOIN_STYLE.mitre, mitre_limit=2), -1)
+        return _exterior_nodes(polygon.buffer(-inflation_margin, join_style=JOIN_STYLE.mitre, mitre_limit=2), -1)
 
     def get_padded_vertices(self) -> NDArray[np.float32]:
         """
