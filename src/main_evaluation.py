@@ -28,6 +28,7 @@ from timer import PieceTimer, LoopTimer
 from typing import List, Tuple
 
 MAX_RUN_STEP = 200
+DYN_OBS_SIZE = 0.8 + 0.8
 
 def ref_traj_filter(original: np.ndarray, new: np.ndarray, decay=1):
     filtered = original.copy()
@@ -72,6 +73,22 @@ def load_mpc(config_path: str, verbose: bool = True):
     traj_gen = InterfaceMpc(config, motion_model=None) # default motion model is used
     return traj_gen
 
+def est_dyn_obs_positions(last_pos: list, current_pos: list, steps:int=20):
+    """
+    Estimate the dynamic obstacle positions in the future.
+    """
+    est_pos = []
+    d_pos = [current_pos[0]-last_pos[0], current_pos[1]-last_pos[1]]
+    for i in range(steps):
+        est_pos.append([current_pos[0]+d_pos[0]*(i+1), current_pos[1]+d_pos[1]*(i+1), DYN_OBS_SIZE, DYN_OBS_SIZE, 0, 1])
+    return est_pos
+
+def circle_to_rect(pos: list, radius:float=DYN_OBS_SIZE):
+    """
+    Convert the circle to a rectangle.
+    """
+    return [[pos[0]-radius, pos[1]-radius], [pos[0]+radius, pos[1]-radius], [pos[0]+radius, pos[1]+radius], [pos[0]-radius, pos[1]+radius]]
+
 
 def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[int, int, int]=(1, 1, 1), verbose:bool=False):
     """
@@ -94,7 +111,6 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
     traj_gen.update_static_constraints(geo_map.processed_obstacle_list) # assuming static obstacles not changed
 
     done = False
-    success = False
     with no_grad():
         while not done:
             obsv = env_eval.reset()
@@ -109,13 +125,23 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
 
             chosen_ref_traj = None
             rl_ref = None  
-            last_rl_ref = None          
+            last_dyn_obstacle_list = None            
 
             switch = HintSwitcher(10, 2, 10)
 
             for i in range(0, MAX_RUN_STEP):
 
                 print(f"\r{decision_mode}, {i+1}/{MAX_RUN_STEP}", end="  ")
+
+                dyn_obstacle_list = [obs.keyframe.position.tolist() for obs in env_eval.obstacles if not obs.is_static]
+                dyn_obstacle_tmp  = [obs+[DYN_OBS_SIZE, DYN_OBS_SIZE, 0, 1] for obs in dyn_obstacle_list]
+                dyn_obstacle_list_poly = [circle_to_rect(obs) for obs in dyn_obstacle_list]
+                dyn_obstacle_pred_list = []
+                if last_dyn_obstacle_list is None:
+                    last_dyn_obstacle_list = dyn_obstacle_list
+                for j, dyn_obs in enumerate(dyn_obstacle_list):
+                    dyn_obstacle_pred_list.append(est_dyn_obs_positions(last_dyn_obstacle_list[j], dyn_obs))
+                last_dyn_obstacle_list = dyn_obstacle_list
 
                 if decision_mode == 0:
                     traj_gen.set_current_state(env_eval.agent.state)
@@ -137,6 +163,8 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
                                              traj_gen.last_action[0], traj_gen.last_action[1])
                     obsv, reward, done, info = env_eval.step(0) # just for plotting and updating status
 
+                    if dyn_obstacle_list:
+                        traj_gen.update_dynamic_constraints(dyn_obstacle_pred_list)
                     original_ref_traj, _ = traj_gen.get_local_ref_traj()
                     chosen_ref_traj = original_ref_traj
                     timer_mpc = PieceTimer()
@@ -164,9 +192,9 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
                     done = env_eval.update_termination()
                     info = env_eval.get_info()
 
-                    real_robot:MobileRobot = env_eval.agent
                     rl_ref = []
-                    robot_sim:MobileRobot = copy.deepcopy(real_robot)
+                    robot_sim:MobileRobot = copy.deepcopy(env_eval.agent)
+                    robot_sim:MobileRobot
                     for j in range(20):
                         if j == 0:
                             robot_sim.step(action_index, traj_gen.config.ts)
@@ -176,6 +204,8 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
                     last_rl_time = timer_rl(4, ms=True)
                     # last_rl_ref = rl_ref
                     
+                    if dyn_obstacle_list:
+                        traj_gen.update_dynamic_constraints([dyn_obstacle_tmp*20])
                     original_ref_traj, rl_ref_traj = traj_gen.get_local_ref_traj(np.array(rl_ref))
                     filtered_ref_traj = ref_traj_filter(original_ref_traj, rl_ref_traj, decay=1) # decay=1 means no decay
                     if switch.switch(traj_gen.state[:2], original_ref_traj.tolist(), filtered_ref_traj.tolist(), geo_map.processed_obstacle_list):
@@ -258,25 +288,31 @@ if __name__ == '__main__':
         - (1-right, 2-sharp, 3-u-shape)
     """
     rl_index = 1
-    num_trials = 20
-    scene_option = (2, 1, 3)
+    num_trials = 50
+    scene_option = (1, 4, 1)
 
-    dqn_metrics = Metrics(mode='dqn')
     mpc_metrics = Metrics(mode='mpc')
-    hyb_metrics = Metrics(mode='hyb')
+    dqn_lid_metrics = Metrics(mode='dqn')
+    dqn_img_metrics = Metrics(mode='dqn')
+    hyb_lid_metrics = Metrics(mode='hyb')
+    # hyb_img_metrics = Metrics(mode='hyb')
 
     for i in range(num_trials):
         print(f"Trial {i+1}/{num_trials}")
-        dqn_metrics = main_evaluate(rl_index=1, decision_mode=0, metrics=dqn_metrics, scene_option=scene_option)
         mpc_metrics = main_evaluate(rl_index=1, decision_mode=1, metrics=mpc_metrics, scene_option=scene_option)
-        hyb_metrics = main_evaluate(rl_index=1, decision_mode=2, metrics=hyb_metrics, scene_option=scene_option)
+        dqn_lid_metrics = main_evaluate(rl_index=1, decision_mode=0, metrics=dqn_lid_metrics, scene_option=scene_option)
+        dqn_img_metrics = main_evaluate(rl_index=0, decision_mode=0, metrics=dqn_img_metrics, scene_option=scene_option)
+        hyb_lid_metrics = main_evaluate(rl_index=1, decision_mode=2, metrics=hyb_lid_metrics, scene_option=scene_option)
+        # hyb_img_metrics = main_evaluate(rl_index=0, decision_mode=2, metrics=hyb_img_metrics, scene_option=scene_option)
 
     print(f"=== Scene {scene_option[0]}-{scene_option[1]}-{scene_option[2]} ===")
-    print(dqn_metrics.get_average())
-    print()
     print(mpc_metrics.get_average())
     print()
-    print(hyb_metrics.get_average())
+    print(dqn_lid_metrics.get_average())
+    print()
+    print(dqn_img_metrics.get_average())
+    print()
+    print(hyb_lid_metrics.get_average())
     print('='*50)
 
 

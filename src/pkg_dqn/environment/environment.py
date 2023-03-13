@@ -240,6 +240,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
             self.axes[2].imshow(external.transpose([1, 2, 0]))
 
         plot.obstacles(self.axes[0], self.obstacles)
+        plot.obstacles(self.axes[0], self.obstacles, padded=True, linestyle="--", label="Padded obstacles")
         plot.boundary(self.axes[0], self.boundary)
         plot.reference_path(self.axes[0], self.path)
         plot.robot(self.axes[0], self.agent)

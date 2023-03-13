@@ -28,6 +28,7 @@ from timer import PieceTimer, LoopTimer
 from typing import List, Tuple
 
 MAX_RUN_STEP = 200
+DYN_OBS_SIZE = 0.8 + 0.8
 
 
 def ref_traj_filter(original: np.ndarray, new: np.ndarray, decay=1):
@@ -73,6 +74,22 @@ def load_mpc(config_path: str):
     traj_gen = InterfaceMpc(config, motion_model=None) # default motion model is used
     return traj_gen
 
+def est_dyn_obs_positions(last_pos: list, current_pos: list, steps:int=20):
+    """
+    Estimate the dynamic obstacle positions in the future.
+    """
+    est_pos = []
+    d_pos = [current_pos[0]-last_pos[0], current_pos[1]-last_pos[1]]
+    for i in range(steps):
+        est_pos.append([current_pos[0]+d_pos[0]*(i+1), current_pos[1]+d_pos[1]*(i+1), DYN_OBS_SIZE, DYN_OBS_SIZE, 0, 1])
+    return est_pos
+
+def circle_to_rect(pos: list, radius:float=DYN_OBS_SIZE):
+    """
+    Convert the circle to a rectangle.
+    """
+    return [[pos[0]-radius, pos[1]-radius], [pos[0]+radius, pos[1]-radius], [pos[0]+radius, pos[1]+radius], [pos[0]-radius, pos[1]+radius]]
+
 
 def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[int, int, int]=(1, 1, 1)):
     """
@@ -91,7 +108,7 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
     cfg_fpath = os.path.join(pathlib.Path(__file__).resolve().parents[1], 'config', CONFIG_FN)
     traj_gen = load_mpc(cfg_fpath)
     geo_map = get_geometric_map(env_eval.get_map_description(), inflate_margin=0.8)
-    traj_gen.update_static_constraints(geo_map.processed_obstacle_list) # assuming static obstacles not changed
+    traj_gen.update_static_constraints(geo_map.processed_obstacle_list) # if assuming static obstacles not changed
 
     done = False
     with no_grad():
@@ -107,12 +124,22 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
             last_rl_time = 0.0
 
             chosen_ref_traj = None
-            rl_ref = None  
-            last_rl_ref = None          
+            rl_ref = None
+            last_dyn_obstacle_list = None      
 
             switch = HintSwitcher(10, 2, 10)
 
             for i in range(0, MAX_RUN_STEP):
+                
+                dyn_obstacle_list = [obs.keyframe.position.tolist() for obs in env_eval.obstacles if not obs.is_static]
+                dyn_obstacle_tmp  = [obs+[DYN_OBS_SIZE, DYN_OBS_SIZE, 0, 1] for obs in dyn_obstacle_list]
+                dyn_obstacle_list_poly = [circle_to_rect(obs) for obs in dyn_obstacle_list]
+                dyn_obstacle_pred_list = []
+                if last_dyn_obstacle_list is None:
+                    last_dyn_obstacle_list = dyn_obstacle_list
+                for j, dyn_obs in enumerate(dyn_obstacle_list):
+                    dyn_obstacle_pred_list.append(est_dyn_obs_positions(last_dyn_obstacle_list[j], dyn_obs))
+                last_dyn_obstacle_list = dyn_obstacle_list
 
                 if decision_mode == 0:
                     traj_gen.set_current_state(env_eval.agent.state)
@@ -127,12 +154,15 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                     # env_eval.update_status(reset=False)
                     # obsv = env_eval.get_observation()
                     # done = env_eval.update_termination()
+                    # info = env_eval.get_info()
 
                 elif decision_mode == 1:
                     env_eval.set_agent_state(traj_gen.state[:2], traj_gen.state[2], 
                                              traj_gen.last_action[0], traj_gen.last_action[1])
                     obsv, reward, done, info = env_eval.step(0) # just for plotting and updating status
 
+                    if dyn_obstacle_list:
+                        traj_gen.update_dynamic_constraints(dyn_obstacle_pred_list)
                     original_ref_traj, _ = traj_gen.get_local_ref_traj()
                     chosen_ref_traj = original_ref_traj
                     timer_mpc = PieceTimer()
@@ -160,9 +190,9 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                     done = env_eval.update_termination()
                     info = env_eval.get_info()
 
-                    real_robot:MobileRobot = env_eval.agent
                     rl_ref = []
-                    robot_sim:MobileRobot = copy.deepcopy(real_robot)
+                    robot_sim:MobileRobot = copy.deepcopy(env_eval.agent)
+                    robot_sim:MobileRobot
                     for j in range(20):
                         if j == 0:
                             robot_sim.step(action_index, traj_gen.config.ts)
@@ -173,9 +203,11 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                     last_rl_time = timer_rl(4, ms=True)
                     # last_rl_ref = rl_ref
                     
+                    if dyn_obstacle_list:
+                        traj_gen.update_dynamic_constraints([dyn_obstacle_tmp*20])
                     original_ref_traj, rl_ref_traj = traj_gen.get_local_ref_traj(np.array(rl_ref))
                     filtered_ref_traj = ref_traj_filter(original_ref_traj, rl_ref_traj, decay=1) # decay=1 means no decay
-                    if switch.switch(traj_gen.state[:2], original_ref_traj.tolist(), filtered_ref_traj.tolist(), geo_map.processed_obstacle_list):
+                    if switch.switch(traj_gen.state[:2], original_ref_traj.tolist(), filtered_ref_traj.tolist(), geo_map.processed_obstacle_list+dyn_obstacle_list_poly):
                         chosen_ref_traj = filtered_ref_traj
                     else:
                         chosen_ref_traj = original_ref_traj
@@ -205,7 +237,7 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                         print(f"Step {i}.Runtime (HYB): {last_mpc_time+last_rl_time} = {last_mpc_time}+{last_rl_time}ms")
 
 
-                if to_plot & (i%10==0): # render
+                if to_plot & (i%1==0): # render
                     env_eval.render(pred_positions=rl_ref, ref_traj=chosen_ref_traj, original_traj=original_ref_traj)
 
                 if i == MAX_RUN_STEP - 1:
@@ -221,15 +253,16 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
 
 if __name__ == '__main__':
     """
-    test_scene_1_dict = {1: [1, 2, 3], 2: [1, 2, 3, 4], 3: [1, 2, 3, 4]} # , 4: [1, 2]}
-    test_scene_2_dict = {1: [1, 2, 3]} # , 2: [1]
+    test_scene_1_dict = {1: [1, 2, 3], 2: [1, 2, 3, 4], 3: [1, 2, 3, 4], 4: [1, 2]}
+    test_scene_2_dict = {1: [1, 2, 3]}
     """
     rl_index = 1 # 0: image, 1: ray
-    scene_option = (1, 1, 3)
+    scene_option = (1, 4, 1)
 
+    # time_list_cnn = main(rl_index=0,        decision_mode=0,  to_plot=False, scene_option=scene_option)
     time_list_dqn = main(rl_index=rl_index, decision_mode=0,  to_plot=False, scene_option=scene_option)
-    time_list_mpc = main(rl_index=rl_index, decision_mode=1,  to_plot=False, scene_option=scene_option)
-    time_list_hyb = main(rl_index=rl_index, decision_mode=2,  to_plot=False, scene_option=scene_option)
+    time_list_mpc = main(rl_index=rl_index, decision_mode=1,  to_plot=True, scene_option=scene_option)
+    time_list_hyb = main(rl_index=rl_index, decision_mode=2,  to_plot=True, scene_option=scene_option)
 
     print(f"Average time: \nDQN {np.mean(time_list_dqn)}ms; \nMPC {np.mean(time_list_mpc)}ms; \nHYB {np.mean(time_list_hyb)}ms; \n")
 
