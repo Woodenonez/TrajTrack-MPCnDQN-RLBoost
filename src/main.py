@@ -204,7 +204,8 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                     # last_rl_ref = rl_ref
                     
                     if dyn_obstacle_list:
-                        traj_gen.update_dynamic_constraints([dyn_obstacle_tmp*20])
+                        # traj_gen.update_dynamic_constraints([dyn_obstacle_tmp*20])
+                        traj_gen.update_dynamic_constraints(dyn_obstacle_pred_list)
                     original_ref_traj, rl_ref_traj = traj_gen.get_local_ref_traj(np.array(rl_ref))
                     filtered_ref_traj = ref_traj_filter(original_ref_traj, rl_ref_traj, decay=1) # decay=1 means no decay
                     if switch.switch(traj_gen.state[:2], original_ref_traj.tolist(), filtered_ref_traj.tolist(), geo_map.processed_obstacle_list+dyn_obstacle_list_poly):
@@ -237,7 +238,7 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                         print(f"Step {i}.Runtime (HYB): {last_mpc_time+last_rl_time} = {last_mpc_time}+{last_rl_time}ms")
 
 
-                if to_plot & (i%1==0): # render
+                if to_plot & (i%5==0): # render
                     env_eval.render(pred_positions=rl_ref, ref_traj=chosen_ref_traj, original_traj=original_ref_traj)
 
                 if i == MAX_RUN_STEP - 1:
@@ -257,26 +258,27 @@ if __name__ == '__main__':
     test_scene_2_dict = {1: [1, 2, 3]}
     """
     rl_index = 1 # 0: image, 1: ray
-    scene_option = (1, 4, 1)
+    scene_option = (2, 1, 1)
 
-    # time_list_cnn = main(rl_index=0,        decision_mode=0,  to_plot=False, scene_option=scene_option)
-    time_list_dqn = main(rl_index=rl_index, decision_mode=0,  to_plot=False, scene_option=scene_option)
-    time_list_mpc = main(rl_index=rl_index, decision_mode=1,  to_plot=True, scene_option=scene_option)
-    time_list_hyb = main(rl_index=rl_index, decision_mode=2,  to_plot=True, scene_option=scene_option)
+    time_list_mpc     = main(rl_index=rl_index, decision_mode=1,  to_plot=True, scene_option=scene_option)
+    time_list_lid     = main(rl_index=rl_index, decision_mode=0,  to_plot=True, scene_option=scene_option)
+    time_list_img     = main(rl_index=0,        decision_mode=0,  to_plot=True, scene_option=scene_option)
+    time_list_hyb_lid = main(rl_index=rl_index, decision_mode=2,  to_plot=True, scene_option=scene_option)
+    time_list_hyb_img = main(rl_index=0,        decision_mode=2,  to_plot=True, scene_option=scene_option)
 
-    print(f"Average time: \nDQN {np.mean(time_list_dqn)}ms; \nMPC {np.mean(time_list_mpc)}ms; \nHYB {np.mean(time_list_hyb)}ms; \n")
+    print(f"Average time: \nDQN {np.mean(time_list_lid)}ms; \nMPC {np.mean(time_list_mpc)}ms; \nHYB {np.mean(time_list_hyb_lid)}ms; \n")
 
     fig, axes = plt.subplots(1,2)
 
     bin_list = np.arange(0, 150, 10)
     # axes[0].hist(time_list_dqn, bins=bin_list, color='r', alpha=0.5, label='DQN')
     axes[0].hist(time_list_mpc, bins=bin_list, color='b', alpha=0.5, label='MPC')
-    axes[0].hist(time_list_hyb, bins=bin_list, color='g', alpha=0.5, label='HYB')
+    axes[0].hist(time_list_hyb_lid, bins=bin_list, color='g', alpha=0.5, label='HYB')
     axes[0].legend()
 
     # axes[1].plot(time_list_dqn, color='r', ls='-', marker='x', label='DQN')
     axes[1].plot(time_list_mpc, color='b', ls='-', marker='x', label='MPC')
-    axes[1].plot(time_list_hyb, color='g', ls='-', marker='x', label='HYB')
+    axes[1].plot(time_list_hyb_lid, color='g', ls='-', marker='x', label='HYB')
 
     plt.show()
     input('Press enter to exit...')

@@ -1,0 +1,45 @@
+casadi==3.5.5
+certifi==2022.12.7
+cffi @ file:///tmp/abs_98z5h56wf8/croots/recipe/cffi_1659598650955/work
+cloudpickle==2.2.0
+commonmark==0.9.1
+contourpy==1.0.6
+cycler==0.11.0
+decorator==5.1.1
+extremitypathfinder==2.4.1
+fonttools==4.38.0
+gym==0.21.0
+gym-notices==0.0.8
+importlib-metadata==4.13.0
+Jinja2==3.1.2
+kiwisolver==1.4.4
+MarkupSafe==2.1.2
+matplotlib==3.6.2
+networkx==2.8.8
+numpy==1.23.4
+nvidia-cublas-cu11==11.10.3.66
+nvidia-cuda-nvrtc-cu11==11.7.99
+nvidia-cuda-runtime-cu11==11.7.99
+nvidia-cudnn-cu11==8.5.0.96
+opencv-python==4.6.0.66
+opengen==0.7.1
+packaging==21.3
+pandas==1.5.1
+Pillow==9.3.0
+py==1.11.0
+pycparser @ file:///home/conda/feedstock_root/build_artifacts/pycparser_1636257122734/work
+Pygments==2.13.0
+pyparsing==3.0.9
+python-dateutil==2.8.2
+pytz==2022.6
+PyYAML==6.0
+retry==0.9.2
+rich==12.6.0
+scipy==1.10.0
+Shapely @ file:///home/conda/feedstock_root/build_artifacts/shapely_1651734309837/work
+six==1.16.0
+stable-baselines3==1.6.2
+torch==1.13.0
+tqdm==4.64.1
+typing_extensions @ file:///home/conda/feedstock_root/build_artifacts/typing_extensions_1665144421445/work
+zipp==3.10.0

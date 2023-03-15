@@ -205,10 +205,11 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
                     # last_rl_ref = rl_ref
                     
                     if dyn_obstacle_list:
-                        traj_gen.update_dynamic_constraints([dyn_obstacle_tmp*20])
+                        # traj_gen.update_dynamic_constraints([dyn_obstacle_tmp*20])
+                        traj_gen.update_dynamic_constraints(dyn_obstacle_pred_list)
                     original_ref_traj, rl_ref_traj = traj_gen.get_local_ref_traj(np.array(rl_ref))
                     filtered_ref_traj = ref_traj_filter(original_ref_traj, rl_ref_traj, decay=1) # decay=1 means no decay
-                    if switch.switch(traj_gen.state[:2], original_ref_traj.tolist(), filtered_ref_traj.tolist(), geo_map.processed_obstacle_list):
+                    if switch.switch(traj_gen.state[:2], original_ref_traj.tolist(), filtered_ref_traj.tolist(), geo_map.processed_obstacle_list+dyn_obstacle_list_poly):
                         chosen_ref_traj = filtered_ref_traj
                     else:
                         chosen_ref_traj = original_ref_traj
@@ -259,7 +260,8 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
     return time_list, info["success"], action_list, traj_gen.ref_traj, env_eval.traversed_positions, geo_map.obstacle_list
 
 def main_evaluate(rl_index: int, decision_mode: int, metrics: Metrics, scene_option:Tuple[int, int, int]) -> Metrics:
-    time_list, success, actions, ref_traj, actual_traj, obstacle_list = main_process(rl_index=rl_index, decision_mode=decision_mode, to_plot=False, scene_option=scene_option)
+    to_plot = False
+    time_list, success, actions, ref_traj, actual_traj, obstacle_list = main_process(rl_index=rl_index, decision_mode=decision_mode, to_plot=to_plot, scene_option=scene_option)
     metrics.add_trial_result(computation_time_list=time_list, succeed=success, action_list=actions, 
                              ref_trajectory=ref_traj, actual_trajectory=actual_traj, obstacle_list=obstacle_list)
     return metrics
@@ -289,13 +291,13 @@ if __name__ == '__main__':
     """
     rl_index = 1
     num_trials = 50
-    scene_option = (1, 4, 1)
+    scene_option = (2, 1, 3)
 
     mpc_metrics = Metrics(mode='mpc')
     dqn_lid_metrics = Metrics(mode='dqn')
     dqn_img_metrics = Metrics(mode='dqn')
     hyb_lid_metrics = Metrics(mode='hyb')
-    # hyb_img_metrics = Metrics(mode='hyb')
+    hyb_img_metrics = Metrics(mode='hyb')
 
     for i in range(num_trials):
         print(f"Trial {i+1}/{num_trials}")
@@ -303,16 +305,19 @@ if __name__ == '__main__':
         dqn_lid_metrics = main_evaluate(rl_index=1, decision_mode=0, metrics=dqn_lid_metrics, scene_option=scene_option)
         dqn_img_metrics = main_evaluate(rl_index=0, decision_mode=0, metrics=dqn_img_metrics, scene_option=scene_option)
         hyb_lid_metrics = main_evaluate(rl_index=1, decision_mode=2, metrics=hyb_lid_metrics, scene_option=scene_option)
-        # hyb_img_metrics = main_evaluate(rl_index=0, decision_mode=2, metrics=hyb_img_metrics, scene_option=scene_option)
+        hyb_img_metrics = main_evaluate(rl_index=0, decision_mode=2, metrics=hyb_img_metrics, scene_option=scene_option)
 
+    round_digits = 2
     print(f"=== Scene {scene_option[0]}-{scene_option[1]}-{scene_option[2]} ===")
-    print(mpc_metrics.get_average())
+    print(mpc_metrics.get_average(round_digits))
     print()
-    print(dqn_lid_metrics.get_average())
+    print(dqn_lid_metrics.get_average(round_digits))
     print()
-    print(dqn_img_metrics.get_average())
+    print(dqn_img_metrics.get_average(round_digits))
     print()
-    print(hyb_lid_metrics.get_average())
+    print(hyb_lid_metrics.get_average(round_digits))
+    print()
+    print(hyb_img_metrics.get_average(round_digits))
     print('='*50)
 
 
