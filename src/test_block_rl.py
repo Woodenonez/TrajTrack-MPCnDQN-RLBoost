@@ -23,14 +23,14 @@ from pkg_dqn.utils.map import generate_map_dynamic, generate_map_corridor, gener
 
 from pkg_dqn.environment import MapDescription, MobileRobot
 
-TO_TRAIN = True
+TO_TRAIN = False
 TO_SAVE = False
 
 def generate_map() -> MapDescription:
     """
     MapDescription = Tuple[MobileRobot, Boundary, List[Obstacle], Goal]
     """
-    return random.choice([generate_map_dynamic, generate_map_corridor, generate_map_mpc()])()
+    return random.choice([generate_map_dynamic])()
 
 def run():
     # Selects which predefined agent model to use
@@ -123,7 +123,7 @@ def run():
                     pred_positions.append(list(robot_sim.position))
 
                 if i % 3 == 0: # Only render every third frame for performance (matplotlib is slow)
-                    env_eval.render(pred_positions=pred_positions)
+                    env_eval.render(dqn_ref=pred_positions)
                 if done:
                     break
     

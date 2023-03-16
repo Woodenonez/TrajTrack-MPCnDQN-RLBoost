@@ -21,7 +21,7 @@ def goal(ax: Axes, goal: Goal, fmt: str = 'y*', *args, **kwargs) -> None:
 
 def reference_path(ax: Axes, l: LineString, fmt: str = '--k', *args, label: str = 'Reference path', **kwargs) -> None:
     line(ax, l, fmt, *args, label=label, **kwargs)
-    goal(ax, Goal(np.asarray(l.coords)[-1, :]), *args, label=None if label is None else 'Goal', **kwargs)
+    goal(ax, Goal(np.asarray(l.coords)[-1, :]), *args, markersize=15, label=None if label is None else 'Goal', **kwargs)
 
 def polygon(ax: Axes, p: Union[Polygon, npt.ArrayLike], *args, **kwargs) -> None:
     p = np.asarray(list(p.exterior.coords) if isinstance(p, Polygon) else p, dtype=np.float32)

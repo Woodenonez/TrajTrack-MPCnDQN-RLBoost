@@ -91,7 +91,7 @@ def circle_to_rect(pos: list, radius:float=DYN_OBS_SIZE):
     return [[pos[0]-radius, pos[1]-radius], [pos[0]+radius, pos[1]-radius], [pos[0]+radius, pos[1]+radius], [pos[0]-radius, pos[1]+radius]]
 
 
-def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[int, int, int]=(1, 1, 1)):
+def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[int, int, int]=(1, 1, 1), save_num:int=1):
     """
     Args:
         rl_index: 0 for image, 1 for ray
@@ -238,8 +238,8 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                         print(f"Step {i}.Runtime (HYB): {last_mpc_time+last_rl_time} = {last_mpc_time}+{last_rl_time}ms")
 
 
-                if to_plot & (i%5==0): # render
-                    env_eval.render(pred_positions=rl_ref, ref_traj=chosen_ref_traj, original_traj=original_ref_traj)
+                if to_plot & (i%1==0): # render
+                    env_eval.render(dqn_ref=rl_ref, actual_ref=chosen_ref_traj, original_ref=original_ref_traj, save=True, save_num=save_num)
 
                 if i == MAX_RUN_STEP - 1:
                     done = True
@@ -258,25 +258,25 @@ if __name__ == '__main__':
     test_scene_2_dict = {1: [1, 2, 3]}
     """
     rl_index = 1 # 0: image, 1: ray
-    scene_option = (2, 1, 1)
+    scene_option = (1, 4, 1)
 
-    time_list_mpc     = main(rl_index=rl_index, decision_mode=1,  to_plot=True, scene_option=scene_option)
-    time_list_lid     = main(rl_index=rl_index, decision_mode=0,  to_plot=True, scene_option=scene_option)
-    time_list_img     = main(rl_index=0,        decision_mode=0,  to_plot=True, scene_option=scene_option)
-    time_list_hyb_lid = main(rl_index=rl_index, decision_mode=2,  to_plot=True, scene_option=scene_option)
-    time_list_hyb_img = main(rl_index=0,        decision_mode=2,  to_plot=True, scene_option=scene_option)
+    time_list_mpc     = main(rl_index=rl_index, decision_mode=1,  to_plot=False, scene_option=scene_option, save_num=1)
+    time_list_lid     = main(rl_index=rl_index, decision_mode=0,  to_plot=False, scene_option=scene_option, save_num=2)
+    time_list_img     = main(rl_index=0,        decision_mode=0,  to_plot=False, scene_option=scene_option, save_num=3)
+    time_list_hyb_lid = main(rl_index=rl_index, decision_mode=2,  to_plot=False, scene_option=scene_option, save_num=4)
+    time_list_hyb_img = main(rl_index=0,        decision_mode=2,  to_plot=True, scene_option=scene_option, save_num=5)
 
     print(f"Average time: \nDQN {np.mean(time_list_lid)}ms; \nMPC {np.mean(time_list_mpc)}ms; \nHYB {np.mean(time_list_hyb_lid)}ms; \n")
 
     fig, axes = plt.subplots(1,2)
 
     bin_list = np.arange(0, 150, 10)
-    # axes[0].hist(time_list_dqn, bins=bin_list, color='r', alpha=0.5, label='DQN')
+    axes[0].hist(time_list_lid, bins=bin_list, color='r', alpha=0.5, label='DQN')
     axes[0].hist(time_list_mpc, bins=bin_list, color='b', alpha=0.5, label='MPC')
     axes[0].hist(time_list_hyb_lid, bins=bin_list, color='g', alpha=0.5, label='HYB')
     axes[0].legend()
 
-    # axes[1].plot(time_list_dqn, color='r', ls='-', marker='x', label='DQN')
+    axes[1].plot(time_list_lid, color='r', ls='-', marker='x', label='DQN')
     axes[1].plot(time_list_mpc, color='b', ls='-', marker='x', label='MPC')
     axes[1].plot(time_list_hyb_lid, color='g', ls='-', marker='x', label='HYB')
 

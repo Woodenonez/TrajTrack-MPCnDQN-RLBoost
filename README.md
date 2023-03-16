@@ -20,11 +20,14 @@ pip install -r requirements.txt
 ```
 
 ### Generate MPC solver
-Go to "test_block.py", change **INIT_BUILD** to true and run
+Go to "test_block_mpc.py", change **INIT_BUILD** to true and run
 ```
 python test_block_mpc.py
 ```
 After this, a new directory *mpc_build* will appear and contains the solver. Then, you are good to go :)
+
+### To train the DQN
+Go to "test_block_rl.py", change **TO_TRAIN** and **TO_SAVE** to true and run.
 
 ## Use Case
 Run *main.py* for the simulation in Python. Several cases are available by changing ```scene_option``` in *main.py*.

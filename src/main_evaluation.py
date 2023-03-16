@@ -240,7 +240,7 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
 
 
                 if to_plot & (i%1==0): # render every third frame
-                    env_eval.render(pred_positions=rl_ref, ref_traj=chosen_ref_traj)
+                    env_eval.render(dqn_ref=rl_ref, actual_ref=chosen_ref_traj)
 
                 if i == MAX_RUN_STEP - 1:
                     done = True

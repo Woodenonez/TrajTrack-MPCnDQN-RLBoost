@@ -7,6 +7,7 @@ from gym import spaces
 import numpy as np
 from numpy.linalg import norm
 import matplotlib.pyplot as plt
+from matplotlib import gridspec
 
 from shapely.geometry import LineString
 from extremitypathfinder import PolygonEnvironment
@@ -47,7 +48,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
     # Component producing external observations
     external_obs_component: Union[Component, None] = None
 
-    def __init__(self, components: list[Component], generate_map: MapGenerator, time_step: float = 0.2):
+    def __init__(self, components: list[Component], generate_map: MapGenerator, time_step:float=0.2):
         """
         :param components: The components which this environemnt should use.
         :param generate_map: Map generation function. 
@@ -55,6 +56,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
         self.components = components
         self.generate_map = generate_map
         self.time_step = time_step
+        self.render_cnt = 0
 
         for component in self.components:
             component.env = self
@@ -218,7 +220,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
         else:
             return observation, reward, terminated, info
 
-    def render(self, mode:str="human", pred_positions=None, ref_traj=None, original_traj=None) -> Union[None, NDArray[np.uint8]]:
+    def render(self, mode:str="human", dqn_ref=None, actual_ref=None, original_ref=None, save=False, save_num:int=1) -> Union[None, NDArray[np.uint8]]:
         external = self.obsv.get("external")
         show_image = False
         if external is not None and len(external.shape) == 3 and external.dtype == np.uint8:
@@ -229,11 +231,19 @@ class TrajectoryPlannerEnvironment(gym.Env):
             if mode == "human":
                 plt.ion()
             if show_image:
-                self.fig, self.axes = plt.subplots(1, 3, constrained_layout=True)
+                self.fig = plt.figure(figsize=(22, 6))
+                gs = gridspec.GridSpec(1, 3, width_ratios=[3, 2, 2])
+                self.axes = [self.fig.add_subplot(gs_) for gs_ in gs]
+                # self.fig, self.axes = plt.subplots(1, 3, constrained_layout=True, 
+                #                                    gridspec_kw={'width_ratios': [3, 2, 2]}, figsize=(10, 4))
             else:
-                self.fig, self.axes = plt.subplots(1, 2, constrained_layout=True)
+                self.fig = plt.figure(figsize=(16, 6))
+                gs = gridspec.GridSpec(1, 2, width_ratios=[3, 2])
+                self.axes = [self.fig.add_subplot(gs_) for gs_ in gs]
+                # self.fig, self.axes = plt.subplots(1, 2, constrained_layout=True, 
+                #                                    gridspec_kw={'width_ratios': [3, 2]}, figsize=(8, 4))
 
-        for ax in self.axes.ravel():
+        for ax in self.axes:
             ax.cla()
 
         if show_image:
@@ -244,39 +254,41 @@ class TrajectoryPlannerEnvironment(gym.Env):
         plot.boundary(self.axes[0], self.boundary)
         plot.reference_path(self.axes[0], self.path)
         plot.robot(self.axes[0], self.agent)
-        plot.line(self.axes[0], self.traversed_positions, "b", label="robot path")
+        plot.line(self.axes[0], self.traversed_positions, "b") #, label="Past path")
 
-        ### XXX
-        if pred_positions is not None:
-            self.axes[0].plot(np.array(pred_positions)[:, 0], np.array(pred_positions)[:, 1], "mx-", label="Predicted path")
-        if ref_traj is not None:
-            self.axes[0].plot(np.array(ref_traj)[:, 0], np.array(ref_traj)[:, 1], "gx-", label="Reference path")
-        if original_traj is not None:
-            self.axes[0].plot(np.array(original_traj)[:, 0], np.array(original_traj)[:, 1], "ro-", label="Original path")
-
+        if dqn_ref is not None:
+            self.axes[0].plot(np.array(dqn_ref)[:, 0], np.array(dqn_ref)[:, 1], "mo-", markerfacecolor='none', label="DQN reference")
+        if original_ref is not None:
+            self.axes[0].plot(np.array(original_ref)[:, 0], np.array(original_ref)[:, 1], "ro-", label="Original reference")
+        if actual_ref is not None:
+            self.axes[0].plot(np.array(actual_ref)[:, 0], np.array(actual_ref)[:, 1], "gx-", label="Actual reference")
 
         for component in self.components:
             component.render(self.axes[0])
 
-        self.axes[0].legend(bbox_to_anchor=(0.5, 1.04), loc="lower center")
+        self.axes[0].legend(ncol=2, loc="upper right", prop={'size': 18})
         self.axes[0].set_aspect('equal')
 
         times = np.arange(len(self.speeds))
         self.axes[1].plot(times, self.speeds, label="Speed [m/s]")
         self.axes[1].plot(times, self.angular_velocities, label="Angular velocity [rad/s]")
-        self.axes[1].legend(bbox_to_anchor=(0.5, 1.04), loc="lower center")
+        self.axes[1].legend(loc="lower right", prop={'size': 18})
 
-        dt = time() - self.last_render_at
-        self.last_render_at = time()
-        fps = 1 / dt
-        self.fig.suptitle('FPS: {:.2f} '.format(fps))
+        # dt = time() - self.last_render_at
+        # self.last_render_at = time()
+        # fps = 1 / dt
+        # self.fig.suptitle('FPS: {:.2f} '.format(fps))
+        
+        if save:
+            self.render_cnt += 1
+            plt.savefig(f'Demo/{save_num}-{self.render_cnt}.png', bbox_inches='tight')
+        else:
+            self.fig.tight_layout()
+            self.fig.canvas.draw()
 
-        self.fig.tight_layout()
-        self.fig.canvas.draw()
-
-        plt.pause(0.01)
-        # while not plt.waitforbuttonpress(0.01):
-        #     pass
+            plt.pause(0.01)
+            while not plt.waitforbuttonpress(0.01):
+                pass
 
         if mode == "human":
             self.fig.canvas.flush_events()
