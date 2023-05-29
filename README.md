@@ -1,5 +1,6 @@
 # Title
-Model Predictive Control with Deep Q-Networks for Motion Planning and Control of Mobile Robots
+Collision-Free Trajectory Planning of Mobile Robots by Integrating
+Deep Reinforcement Learning and Model Predictive Control
 
 ## Publication
 The paper is available: [Not Yet] \
