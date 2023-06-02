@@ -3,7 +3,7 @@ Collision-Free Trajectory Planning of Mobile Robots by Integrating
 Deep Reinforcement Learning and Model Predictive Control
 
 ## Publication
-The paper is available: [Not Yet] \
+The paper is available: [Not Yet] (Accepted by CASE2023) \
 Bibtex citation:
 ```
 not yet
