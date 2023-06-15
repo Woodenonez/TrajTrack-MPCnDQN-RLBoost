@@ -19,6 +19,10 @@ The NMPC formulation is solved using open source implementation of PANOC, namely
 ```
 pip install -r requirements.txt
 ```
+or
+```
+conda env create -f environment.yaml
+```
 
 ### Generate MPC solver
 Go to "test_block_mpc.py", change **INIT_BUILD** to true and run
