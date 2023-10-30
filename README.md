@@ -1,6 +1,6 @@
-# Title
-Collision-Free Trajectory Planning of Mobile Robots by Integrating
-Deep Reinforcement Learning and Model Predictive Control
+# DQN-Boosted MPC for Collision-Free Navigation of Mobile Robots
+*Collision-Free Trajectory Planning of Mobile Robots by Integrating
+Deep Reinforcement Learning and Model Predictive Control*
 
 ## Publication
 The paper is available: [Not Yet] (Accepted by CASE2023) \
