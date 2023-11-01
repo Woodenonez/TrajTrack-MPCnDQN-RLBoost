@@ -3,11 +3,11 @@
 Deep Reinforcement Learning and Model Predictive Control*
 
 ## Publication
-The paper is available: [Not Yet] (Accepted by CASE2023) \
+The paper is available: [Not Yet] (Accepted by IEEE CASE2023) \
 Bibtex citation:
 ```
 @inproceedings{ze_2023_rlboost,  
-    author={Zhang, Ze and Dean, Emmanuel and Karayiannidis, Yiannis and Åkesson, Knut},  
+    author={Z. Zhang, Y. Cai, K. Ceder, A. Enliden, O. Eriksson, S. Kylander, R. Sridhara, and K. Åkesson},  
     booktitle={CASE},   
     title={Collision-Free Trajectory Planning of Mobile Robots by Integrating Deep Reinforcement Learning and Model Predictive Control},
     year={2023},
