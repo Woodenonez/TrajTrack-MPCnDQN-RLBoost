@@ -3,7 +3,7 @@
 Deep Reinforcement Learning and Model Predictive Control*
 
 ## Publication
-The paper is available: [Not Yet] (Accepted by IEEE CASE2023) \
+The paper is available: [IEEE CASE2023](https://ieeexplore.ieee.org/document/10260515) \
 Bibtex citation:
 ```
 @inproceedings{ze_2023_rlboost,  
