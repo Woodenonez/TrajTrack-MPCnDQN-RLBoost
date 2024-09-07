@@ -2,6 +2,8 @@
 *Collision-Free Trajectory Planning of Mobile Robots by Integrating
 Deep Reinforcement Learning and Model Predictive Control*
 
+**Please find our newest work (published at IROS 2024): [DDPG-boosted MPC for Multiple Mobile Robots](https://github.com/kristianceder/DRL-Traj-Planner)** I mainly worked on the multi-robot part which is under the corresponding branch.
+
 ## Publication
 The paper is available: [IEEE CASE2023](https://ieeexplore.ieee.org/document/10260515) \
 Bibtex citation:
